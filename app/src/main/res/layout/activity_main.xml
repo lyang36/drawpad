@@ -9,5 +9,12 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layerType="hardware"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="80dp"
         android:id="@+id/canvasView"/>
+
+    <include layout="@layout/subview_drawpad_sample_dot"/>
+    <include layout="@layout/subview_drawpad_control_bar"/>
+    <include layout="@layout/subview_drawpad_colorpicker"/>
+
 </RelativeLayout>
