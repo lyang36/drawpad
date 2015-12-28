@@ -16,7 +16,6 @@ import android.graphics.Bitmap.CompressFormat;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.CornerPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
@@ -45,6 +44,8 @@ public class CanvasView extends View {
     Bitmap overflowBitmap = null;
     Bitmap currentScreenBitMap = null;
     private float mScaleFactor = 1.f;
+    private int scalePivotX = 0;
+    private int scalePivotY = 0;
     private ScaleGestureDetector scaleGestureDetector;
     // the draw bound
     private Rect drawBound;
@@ -235,7 +236,7 @@ public class CanvasView extends View {
         paint.setStrokeWidth(this.paintStrokeWidth);
         paint.setStrokeJoin(Paint.Join.ROUND);    // set the join to round you want
         paint.setStrokeCap(Paint.Cap.ROUND);      // set the paint cap to round too
-        paint.setPathEffect(new CornerPathEffect(10));   // set the path effect when they join.
+        //paint.setPathEffect(new CornerPathEffect(10));   // set the path effect when they join.
 
         // for Text
         if (this.mode == Mode.TEXT) {
@@ -283,11 +284,11 @@ public class CanvasView extends View {
     }
 
     private float getEventX(MotionEvent event) {
-        return (event.getX() - translateX) / mScaleFactor;// - drawBound.left * mScaleFactor;
+        return (event.getX() - translateX - scalePivotX) / mScaleFactor + scalePivotX;// - drawBound.left * mScaleFactor;
     }
 
     private float getEventY(MotionEvent event) {
-        return (event.getY() - translateY) / mScaleFactor;// - drawBound.left * mScaleFactor;
+        return (event.getY() - translateY - scalePivotY) / mScaleFactor + scalePivotY;// - drawBound.left * mScaleFactor;
     }
 
     /**
@@ -560,7 +561,8 @@ public class CanvasView extends View {
         }
         canvas.save();
         canvas.translate(translateX, translateY);
-        canvas.scale(mScaleFactor, mScaleFactor);
+        canvas.scale(mScaleFactor, mScaleFactor, scalePivotX, scalePivotY);
+
 
         if (currentScreenBitMap == null) {
             drawBitMap(-1);
@@ -579,7 +581,7 @@ public class CanvasView extends View {
 
             paint.setStrokeJoin(Paint.Join.ROUND);    // set the join to round you want
             paint.setStrokeCap(Paint.Cap.ROUND);      // set the paint cap to round too
-            paint.setPathEffect(new CornerPathEffect(10));   // set the path effect when they join.
+            //paint.setPathEffect(new CornerPathEffect(10));   // set the path effect when they join.
 
             canvas.drawPath(path, paint);
         }
@@ -605,6 +607,8 @@ public class CanvasView extends View {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         //Log.d("PointA", "" + (event.getAction() == MotionEvent.ACTION_POINTER_DOWN));
+        //float initTransX = translateX;
+        //float initTransY = translateY;
         switch (event.getAction() & MotionEvent.ACTION_MASK) {
             case MotionEvent.ACTION_POINTER_DOWN:
                 Log.d("PointDown", "" + event.getPointerCount());
@@ -612,8 +616,10 @@ public class CanvasView extends View {
                     isTwoFingerDown = true;
                     twoFingerStartX = event.getX();
                     twoFingerStartY = event.getY();
-                    currentTranslateX = translateX;
-                    currentTranslateY = translateY;
+
+                    scalePivotX = (int) event.getX();
+                    scalePivotY = (int) event.getY();
+
                 }
                 break;
             case MotionEvent.ACTION_MOVE:
@@ -642,6 +648,10 @@ public class CanvasView extends View {
             scaleGestureDetector.onTouchEvent(event);
 
             if (scaleGestureDetector.isInProgress()) {
+                //invalid the move
+                //translateX = initTransX;
+                //translateY = initTransY;
+
                 if (isDown) {
                     // undo the current drawing
                     onActionUp(event);
