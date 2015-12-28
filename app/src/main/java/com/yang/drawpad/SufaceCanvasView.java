@@ -1,10 +1,10 @@
 /**
  * CanvasView.java
- *
+ * <p/>
  * Copyright (c) 2014 Tomohiro IKEDA (Korilakkuma)
  * Released under the MIT license
- *
- *
+ * <p/>
+ * <p/>
  * Modified by Lin Yang, 12/16/2015
  */
 
@@ -16,7 +16,6 @@ import android.graphics.Bitmap.CompressFormat;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.CornerPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
@@ -39,47 +38,49 @@ import java.util.List;
 
 /**
  * This class defines fields and methods for drawing.
+ *
+ * should have identical functionality, but rendering use
+ * Surface view to render
  */
-public class CanvasView extends View {
-    private static final int MAX_NUM_PATHS = 200;
+public class SufaceCanvasView extends View {
+    private static final int MAX_NUM_PATHS = 32;
     Bitmap overflowBitmap = null;
-    Bitmap currentScreenBitMap = null;
     private float mScaleFactor = 1.f;
     private ScaleGestureDetector scaleGestureDetector;
     // the draw bound
     private Rect drawBound;
     private Context context = null;
-    private Canvas canvas   = null;
-    private Bitmap bitmap   = null;
-    private List<Path>  pathLists  = new ArrayList<Path>();
+    private Canvas canvas = null;
+    private Bitmap bitmap = null;
+    private List<Path> pathLists = new ArrayList<Path>();
     private List<Paint> paintLists = new ArrayList<Paint>();
     // for Eraser
     private int baseColor = Color.WHITE;
     // for Undo, Redo
     private int historyPointer = 0;
     // Flags
-    private Mode mode      = Mode.DRAW;
-    private Drawer drawer  = Drawer.PEN;
+    private Mode mode = Mode.DRAW;
+    private Drawer drawer = Drawer.PEN;
     private boolean isDown = false;
     // for Paint
     private Paint.Style paintStyle = Paint.Style.STROKE;
-    private int paintStrokeColor   = Color.BLACK;
-    private int paintFillColor     = Color.BLACK;
+    private int paintStrokeColor = Color.BLACK;
+    private int paintFillColor = Color.BLACK;
     private float paintStrokeWidth = 3F;
-    private int opacity            = 255;
-    private float blur             = 0F;
-    private Paint.Cap lineCap      = Paint.Cap.ROUND;
+    private int opacity = 255;
+    private float blur = 0F;
+    private Paint.Cap lineCap = Paint.Cap.ROUND;
     // for Text
-    private String text           = "";
-    private Typeface fontFamily   = Typeface.DEFAULT;
-    private float fontSize        = 32F;
+    private String text = "";
+    private Typeface fontFamily = Typeface.DEFAULT;
+    private float fontSize = 32F;
     private Paint.Align textAlign = Paint.Align.RIGHT;  // fixed
-    private Paint textPaint       = new Paint();
-    private float textX           = 0F;
-    private float textY           = 0F;
+    private Paint textPaint = new Paint();
+    private float textX = 0F;
+    private float textY = 0F;
     // for Drawer
-    private float startX   = 0F;
-    private float startY   = 0F;
+    private float startX = 0F;
+    private float startY = 0F;
     private float controlX = 0F;
     private float controlY = 0F;
     private float translateX = 0F;
@@ -98,7 +99,7 @@ public class CanvasView extends View {
      * @param attrs
      * @param defStyle
      */
-    public CanvasView(Context context, AttributeSet attrs, int defStyle) {
+    public SufaceCanvasView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
         this.setup(context);
     }
@@ -109,7 +110,7 @@ public class CanvasView extends View {
      * @param context
      * @param attrs
      */
-    public CanvasView(Context context, AttributeSet attrs) {
+    public SufaceCanvasView(Context context, AttributeSet attrs) {
         super(context, attrs);
         this.setup(context);
     }
@@ -121,7 +122,7 @@ public class CanvasView extends View {
      *
      * @param context
      */
-    public CanvasView(Context context) {
+    public SufaceCanvasView(Context context) {
         super(context);
         this.setup(context);
     }
@@ -162,30 +163,30 @@ public class CanvasView extends View {
                 new ScaleListener());
     }
 
-    private void addPath(Path path, Paint paint){
+    private void addPath(Path path, Paint paint) {
 
-        if(historyPointer < pathLists.size()) {
+        if (historyPointer < pathLists.size()) {
             this.pathLists.set(historyPointer, path);
             this.paintLists.set(historyPointer, paint);
-        }else {
+        } else {
             this.pathLists.add(path);
             this.paintLists.add(paint);
         }
-        this.historyPointer ++;
+        this.historyPointer++;
 
-        if(historyPointer >= MAX_NUM_PATHS){
+        if (historyPointer >= MAX_NUM_PATHS) {
             // draw the image to bitmap
-            if(overflowBitmap == null){
+            if (overflowBitmap == null) {
                 overflowBitmap = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
             }
             // draw the path to the bitmap
             Canvas canvas = new Canvas(overflowBitmap);
-            Path path1   = this.pathLists.get(0);
+            Path path1 = this.pathLists.get(0);
             Paint paint1 = this.paintLists.get(0);
             canvas.drawPath(path1, paint1);
             this.pathLists.remove(0);
             this.paintLists.remove(0);
-            this.historyPointer --;
+            this.historyPointer--;
         }
     }
 
@@ -196,16 +197,16 @@ public class CanvasView extends View {
     }
 
     @Override
-    protected void onFinishInflate (){
+    protected void onFinishInflate() {
         super.onFinishInflate();
     }
 
-    public void setScaleFactor(float scaleFactor){
+    public void setScaleFactor(float scaleFactor) {
         this.mScaleFactor = scaleFactor;
         this.invalidate();
     }
 
-    public void setScaleGestureDetector(ScaleGestureDetector scaleGestureDetector){
+    public void setScaleGestureDetector(ScaleGestureDetector scaleGestureDetector) {
         this.scaleGestureDetector = scaleGestureDetector;
     }
 
@@ -214,7 +215,7 @@ public class CanvasView extends View {
         this.invalidate();
     }
 
-    public void setDrawBound(int left, int top, int right, int bottom){
+    public void setDrawBound(int left, int top, int right, int bottom) {
         this.drawBound = new Rect(left, top, right, bottom);
         this.invalidate();
     }
@@ -233,9 +234,8 @@ public class CanvasView extends View {
         paint.setDither(true);
         paint.setStyle(this.paintStyle);
         paint.setStrokeWidth(this.paintStrokeWidth);
-        paint.setStrokeJoin(Paint.Join.ROUND);    // set the join to round you want
-        paint.setStrokeCap(Paint.Cap.ROUND);      // set the paint cap to round too
-        paint.setPathEffect(new CornerPathEffect(10));   // set the path effect when they join.
+        paint.setStrokeCap(this.lineCap);
+        paint.setStrokeJoin(Paint.Join.MITER);  // fixed
 
         // for Text
         if (this.mode == Mode.TEXT) {
@@ -491,57 +491,7 @@ public class CanvasView extends View {
             this.startX = 0F;
             this.startY = 0F;
             this.isDown = false;
-
-            //add the newest path to the drawpad
-            drawBitMap(this.historyPointer - 1);
         }
-    }
-
-    /**
-     *
-     * @param pathId <p>-1: draw all paths</p>
-     *                <p>i>0: draw the i-th path</p>
-     */
-    private void drawBitMap(int pathId) {
-        if (currentScreenBitMap == null) {
-            currentScreenBitMap = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
-        }
-        Canvas canvas = new Canvas(currentScreenBitMap);
-
-        // redraw the whole image
-        if (pathId == -1) {
-            // Before "drawPath"
-            canvas.drawColor(this.baseColor);
-
-            if (this.bitmap != null) {
-                canvas.drawBitmap(this.bitmap, 0F, 0F, new Paint());
-            }
-
-            if (this.overflowBitmap != null) {
-                Paint paint = new Paint();
-                paint.setAntiAlias(true);
-                paint.setFilterBitmap(true);
-                paint.setDither(true);
-                canvas.drawBitmap(this.overflowBitmap, 0F, 0F, paint);
-            }
-
-            for (int i = 0; i < this.historyPointer; i++) {
-                Path path = this.pathLists.get(i);
-                Paint paint = this.paintLists.get(i);
-
-                canvas.drawPath(path, paint);
-            }
-
-            this.drawText(canvas);
-
-
-        } else {
-            Path path = this.pathLists.get(pathId);
-            Paint paint = this.paintLists.get(pathId);
-
-            canvas.drawPath(path, paint);
-        }
-
     }
 
     /**
@@ -553,36 +503,39 @@ public class CanvasView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (drawBound.bottom - drawBound.top == 0) {
-            drawBound.left = 1;
+            drawBound.left = 0;
             drawBound.right = getWidth();
-            drawBound.top = 1;
+            drawBound.top = 0;
             drawBound.bottom = getHeight();
         }
         canvas.save();
         canvas.translate(translateX, translateY);
         canvas.scale(mScaleFactor, mScaleFactor);
 
-        if (currentScreenBitMap == null) {
-            drawBitMap(-1);
+
+        // Before "drawPath"
+        canvas.drawColor(this.baseColor);
+
+        if (this.bitmap != null) {
+            canvas.drawBitmap(this.bitmap, 0F, 0F, new Paint());
         }
 
+        if (this.overflowBitmap != null) {
+            Paint paint = new Paint();
+            paint.setAntiAlias(true);
+            paint.setFilterBitmap(true);
+            paint.setDither(true);
+            canvas.drawBitmap(this.overflowBitmap, 0F, 0F, paint);
+        }
 
-        Paint paint = new Paint();
-        paint.setAntiAlias(true);
-        paint.setFilterBitmap(true);
-        paint.setDither(true);
-        canvas.drawBitmap(this.currentScreenBitMap, 0F, 0F, paint);
-
-        if (isDown) {
-            Path path = this.pathLists.get(this.historyPointer - 1);
-            paint = this.paintLists.get(this.historyPointer - 1);
-
-            paint.setStrokeJoin(Paint.Join.ROUND);    // set the join to round you want
-            paint.setStrokeCap(Paint.Cap.ROUND);      // set the paint cap to round too
-            paint.setPathEffect(new CornerPathEffect(10));   // set the path effect when they join.
+        for (int i = 0; i < this.historyPointer; i++) {
+            Path path = this.pathLists.get(i);
+            Paint paint = this.paintLists.get(i);
 
             canvas.drawPath(path, paint);
         }
+
+        this.drawText(canvas);
 
         //put a hole in the current clip
         canvas.clipRect(drawBound, Region.Op.DIFFERENCE);
@@ -591,6 +544,7 @@ public class CanvasView extends View {
         //restore full canvas clip for any subsequent operations
         canvas.clipRect(new Rect(0, 0, canvas.getWidth(), canvas.getHeight())
                 , Region.Op.REPLACE);
+
 
         this.canvas = canvas;
         canvas.restore();
@@ -719,10 +673,6 @@ public class CanvasView extends View {
     public boolean undo() {
         if (this.historyPointer > 1) {
             this.historyPointer--;
-
-            // redraw the screen
-            drawBitMap(-1);
-
             this.invalidate();
 
             return true;
