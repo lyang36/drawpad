@@ -41,8 +41,16 @@ import java.util.List;
  */
 public class CanvasView extends View {
     private static final int MAX_NUM_PATHS = 200;
-    Bitmap overflowBitmap = null;
-    Bitmap currentScreenBitMap = null;
+
+    // the bitmap to record the paths when exceed max_num_paths
+    private Bitmap overflowBitmap = null;
+
+    // the current screen bitmap
+    private Bitmap currentScreenBitMap = null;
+
+    // the full screen bitmap
+    private Bitmap fullScreenBitmap = null;
+
     private float mScaleFactor = 1.f;
     private int scalePivotX = 0;
     private int scalePivotY = 0;
@@ -66,6 +74,7 @@ public class CanvasView extends View {
     private Paint.Style paintStyle = Paint.Style.STROKE;
     private int paintStrokeColor   = Color.BLACK;
     private int paintFillColor     = Color.BLACK;
+    private int plainColor = Color.parseColor("#a8a8a8");
     private float paintStrokeWidth = 3F;
     private int opacity            = 255;
     private float blur             = 0F;
@@ -545,29 +554,20 @@ public class CanvasView extends View {
 
     }
 
-    /**
-     * This method updates the instance of Canvas (View)
-     *
-     * @param canvas the new instance of Canvas
-     */
-    @Override
-    protected void onDraw(Canvas canvas) {
-        super.onDraw(canvas);
-        if (drawBound.bottom - drawBound.top == 0) {
-            drawBound.left = 1;
-            drawBound.right = getWidth();
-            drawBound.top = 1;
-            drawBound.bottom = getHeight();
+
+    private void drawFullScreenBitmap() {
+        if (fullScreenBitmap == null) {
+            fullScreenBitmap = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
         }
+
+        Canvas canvas = new Canvas(fullScreenBitmap);
         canvas.save();
+
         canvas.translate(translateX, translateY);
         canvas.scale(mScaleFactor, mScaleFactor, scalePivotX, scalePivotY);
-
-
         if (currentScreenBitMap == null) {
             drawBitMap(-1);
         }
-
 
         Paint paint = new Paint();
         paint.setAntiAlias(true);
@@ -585,17 +585,45 @@ public class CanvasView extends View {
 
             canvas.drawPath(path, paint);
         }
-
         //put a hole in the current clip
         canvas.clipRect(drawBound, Region.Op.DIFFERENCE);
-        //fill with semi-transparent red
-        canvas.drawRGB(100, 100, 100);
+        //fill with plain color at the plain region
+        canvas.drawColor(plainColor);
         //restore full canvas clip for any subsequent operations
         canvas.clipRect(new Rect(0, 0, canvas.getWidth(), canvas.getHeight())
                 , Region.Op.REPLACE);
 
         this.canvas = canvas;
         canvas.restore();
+
+    }
+
+    /**
+     * This method updates the instance of Canvas (View)
+     *
+     * @param canvas the new instance of Canvas
+     */
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+        if (drawBound.bottom - drawBound.top == 0) {
+            drawBound.left = 1;
+            drawBound.right = getWidth();
+            drawBound.top = 1;
+            drawBound.bottom = getHeight();
+        }
+
+        drawFullScreenBitmap();
+
+        Paint paint = new Paint();
+        paint.setAntiAlias(true);
+        paint.setFilterBitmap(true);
+        paint.setDither(true);
+        canvas.drawBitmap(this.fullScreenBitmap, 0F, 0F, paint);
+    }
+
+    public void setPlainColor(int plainColor) {
+        this.plainColor = plainColor;
     }
 
     /**

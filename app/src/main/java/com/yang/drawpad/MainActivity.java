@@ -2,8 +2,8 @@ package com.yang.drawpad;
 
 import android.content.Context;
 import android.graphics.Color;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -22,7 +22,7 @@ public class MainActivity extends AppCompatActivity {
     int currentColor = Color.parseColor("#000000");
 
 
-    private CanvasView canvasView;
+    private SurfaceCanvasView canvasView;
 
     private View undoButton;
     private ColorDotView colorPickerButton;
@@ -37,7 +37,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        canvasView = (CanvasView) findViewById(R.id.canvasView);
+        canvasView = (SurfaceCanvasView) findViewById(R.id.canvasView);
         sampleDotView = (ColorDotView) findViewById(R.id.colorDot);
         colorPickerButton = (ColorDotView) findViewById(R.id.colorPicker_button);
         colorPickerView = findViewById(R.id.colorPicker);
@@ -137,6 +137,18 @@ public class MainActivity extends AppCompatActivity {
         sampleDotView.setFaceColor(currentColor);
     }
 
+    @Override
+    protected void onPause() {
+        super.onPause();
+        canvasView.pause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        canvasView.resume();
+    }
+
     public class GridElementAdapter extends RecyclerView.Adapter<GridElementAdapter.SimpleViewHolder>{
 
         private Context context;
@@ -145,15 +157,6 @@ public class MainActivity extends AppCompatActivity {
         public GridElementAdapter(Context context){
             this.context = context;
             this.colorStrings = new ArrayList<String>();
-        }
-
-        class SimpleViewHolder extends RecyclerView.ViewHolder {
-            public final ColorDotView colorDotView;
-
-            public SimpleViewHolder(View view) {
-                super(view);
-                colorDotView = (ColorDotView) view.findViewById(R.id.colorDot);
-            }
         }
 
         @Override
@@ -175,6 +178,15 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public int getItemCount() {
             return this.colorStrings.size();
+        }
+
+        class SimpleViewHolder extends RecyclerView.ViewHolder {
+            public final ColorDotView colorDotView;
+
+            public SimpleViewHolder(View view) {
+                super(view);
+                colorDotView = (ColorDotView) view.findViewById(R.id.colorDot);
+            }
         }
     }
 
