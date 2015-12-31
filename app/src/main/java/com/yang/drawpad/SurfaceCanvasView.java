@@ -46,9 +46,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
 
 
     Thread drawThread = null;
-    float prevX, prevY;
-    // for even, treat as end point
-    // for odd, treat as control
     int pathPointCounter = 0;
     // the bitmap to record the paths when exceed max_num_paths
     private Bitmap overflowBitmap = null;
@@ -97,7 +94,9 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     private float controlY = 0F;
     private float translateX = 0F;
     private float translateY = 0F;
-
+    // to draw the spline
+    private float prevX, prevY;
+    private float prevX1, prevY1;
     // move the view
     private boolean isTwoFingerDown = false;
     private float twoFingerStartX;
@@ -311,6 +310,11 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         this.startY = getEventY(event);
         prevX = startX;
         prevY = startY;
+        prevX1 = prevX;
+        prevY1 = prevY;
+        pathPointCounter = 0;
+
+
 
         path.moveTo(this.startX, this.startY);
 
@@ -497,8 +501,8 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
                                 prevX = historicalX;
                                 prevY = historicalY;
                             }
-                            path.lineTo(x, y);
-                            //path.quadTo(prevX, prevY, x, y);
+                            //path.lineTo(x, y);
+                            path.quadTo(prevX, prevY, x, y);
                             //pathPointCounter ++;
                             //if(pathPointCounter % 2 == 0){
                             //    path.quadTo(prevX, prevY, x, y);
