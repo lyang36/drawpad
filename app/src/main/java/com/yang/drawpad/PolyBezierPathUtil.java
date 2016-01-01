@@ -13,6 +13,10 @@ import java.util.List;
 
 public class PolyBezierPathUtil {
 
+    // if the point with cosine greater than this threshold
+    // use line to
+    public static final float COS_ANGLE_THRESHOLD = 0.6F;
+
     /**
      * Computes a Poly-Bezier curve passing through a given list of knots.
      * The curve will be twice-differentiable everywhere and satisfy natural
@@ -154,6 +158,13 @@ public class PolyBezierPathUtil {
                 targetKnot.getX(),
                 targetKnot.getY()
         );
+
+        /*if(BuildConfig.DEBUG){
+            Log.d("PATH", String.format("[(%2.0f, %2.0f), (%2.0f, %2.0f), (%2.0f, %2.0f)]",
+                    control1.getX(), control1.getY(),
+                    control2.getX(), control2.getY(),
+                    targetKnot.getX(), targetKnot.getY()));
+        }*/
     }
 
     private static void throwExceptionIfInputIsInvalid(Collection<EPointF> knots) {

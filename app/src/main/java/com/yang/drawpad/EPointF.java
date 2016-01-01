@@ -41,4 +41,9 @@ public class EPointF {
         return new EPointF(factor * x, factor * y);
     }
 
+    @Override
+    public String toString() {
+        return String.format("(%2.2f, %2.2f)", getX(), getY());
+    }
+
 }

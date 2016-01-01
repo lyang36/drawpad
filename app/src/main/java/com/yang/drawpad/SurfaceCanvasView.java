@@ -16,6 +16,7 @@ import android.graphics.Bitmap.CompressFormat;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.CornerPathEffect;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
@@ -41,32 +42,40 @@ import java.util.List;
 public class SurfaceCanvasView extends SurfaceView implements Runnable {
     // the maximum number of paths to undo
     private static final int MAX_NUM_PATHS = 200;
-    private static final float TOUCH_TOLERANCE = 5;
-    int pathPointCounter = 0;
+    private static final float TOUCH_TOLERANCE = 15;
+
+    // the draw thread on the background
     private Thread drawThread = null;
+
     // the bitmap to record the paths when exceed max_num_paths
     private Bitmap overflowBitmap = null;
+
     // the current screen bitmap
     private Bitmap currentScreenBitMap = null;
     private float mScaleFactor = 1.f;
     private int scalePivotX = 0;
     private int scalePivotY = 0;
     private ScaleGestureDetector scaleGestureDetector;
+
     // the draw bound
     private Rect drawBound;
-    private Context context = null;
+
     //private Canvas canvas   = null;
     private Bitmap bitmap;
     private List<Path> pathLists = new ArrayList<Path>();
     private List<Paint> paintLists = new ArrayList<Paint>();
+
+
     // for Eraser
     private int baseColor = Color.WHITE;
     // for Undo, Redo
     private int historyPointer = 0;
     // Flags
     private Mode mode = Mode.DRAW;
-    private Drawer drawer = Drawer.PEN;
+    private Drawer drawer = Drawer.SMOOTH_PEN;
     private boolean isDown = false;
+
+
     // for Paint
     private Paint.Style paintStyle = Paint.Style.STROKE;
     private int paintStrokeColor = Color.BLACK;
@@ -76,6 +85,8 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     private int opacity = 255;
     private float blur = 0F;
     private Paint.Cap lineCap = Paint.Cap.ROUND;
+
+
     // for Text
     private String text = "";
     private Typeface fontFamily = Typeface.DEFAULT;
@@ -84,6 +95,8 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     private Paint textPaint = new Paint();
     private float textX = 0F;
     private float textY = 0F;
+
+
     // for Drawer
     private float startX = 0F;
     private float startY = 0F;
@@ -91,9 +104,11 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     private float controlY = 0F;
     private float translateX = 0F;
     private float translateY = 0F;
+    private float prevX = 0F;
+    private float prevY = 0F;
+
+
     // to draw the spline
-    private float prevX, prevY;
-    private float prevX1, prevY1;
     private BezierCurveConstructor bezierCurveConstructor;
 
     // move the view
@@ -108,6 +123,7 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     private boolean isAddNewestPath = false;
 
 
+    // measuring fps
     private long mLastTime = 0;
     private int fps = 0, ifps = 0;
 
@@ -115,7 +131,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     // only the updated rectangle need to be redrawed
     private RenderRect renderRect;
 
-    private Rect testRect;
 
     /**
      * Copy Constructor
@@ -175,7 +190,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
      * @param context
      */
     private void setup(Context context) {
-        this.context = context;
 
         /*this.pathLists.add(new Path());
         this.paintLists.add(this.createPaint());
@@ -263,10 +277,9 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         paint.setDither(true);
         paint.setStyle(this.paintStyle);
         paint.setStrokeWidth(this.paintStrokeWidth);
-        paint.setStrokeJoin(Paint.Join.ROUND);    // set the join to round you want
+        paint.setStrokeJoin(Paint.Join.BEVEL);    // set the join to round you want
         paint.setStrokeCap(Paint.Cap.ROUND);      // set the paint cap to round too
-        //paint.set
-        //paint.setPathEffect(new CornerPathEffect(this.paintStrokeWidth * 2));   // set the path effect when they join.
+        paint.setPathEffect(new CornerPathEffect(paintStrokeWidth));
 
         // for Text
         if (this.mode == Mode.TEXT) {
@@ -307,16 +320,8 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         // Save for ACTION_MOVE
         this.startX = getEventX(event);
         this.startY = getEventY(event);
-        prevX = startX;
-        prevY = startY;
-        prevX1 = prevX;
-        prevY1 = prevY;
-        pathPointCounter = 0;
-
-
 
         path.moveTo(this.startX, this.startY);
-
         bezierCurveConstructor.addPoint(this.startX, this.startY);
 
         return path;
@@ -433,10 +438,9 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         switch (this.mode) {
             case DRAW:
             case ERASER:
-                if ((this.drawer != Drawer.QUADRATIC_BEZIER) && (this.drawer != Drawer.QUBIC_BEZIER)) {
+                if ((this.drawer != Drawer.QUADRATIC_BEZIER)
+                        && (this.drawer != Drawer.QUBIC_BEZIER)) {
 
-
-                    pathPointCounter = 0;
                     if (bezierCurveConstructor == null) {
                         bezierCurveConstructor = new BezierCurveConstructor();
                     } else {
@@ -477,31 +481,17 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         float dy = Math.abs(y - prevY);
 
         // this is crucial to draw a reasonable path
-        if (!(dx >= TOUCH_TOLERANCE / mScaleFactor || dy >= TOUCH_TOLERANCE / mScaleFactor)) {
-            return;
-        }
-        //path.quadTo(prevX, prevY, (x + prevX)/2, (y + prevY)/2);
-        bezierCurveConstructor.addPoint(x, y);
+        if (dx >= TOUCH_TOLERANCE || dy >= TOUCH_TOLERANCE) {
+            bezierCurveConstructor.addPoint(x, y);
 
+            if (this.drawer == Drawer.PEN) {
+                path.lineTo(x, y);
+            }
 
-        float d0x, d0y;
-        float d1x, d1y;
-        if (pathPointCounter < 2) {
-            // less than 3 points, not drawing
-        } else {
-            //d1x = ((prevX - prevX1) / 3);
-            //d1y = ((prevY - prevY1) / 3);
-            d0x = ((x - prevX1) / 5);
-            d0y = ((y - prevY1) / 5);
-            //path.cubicTo(prevX + d0x, prevY + d0y, x - d0x, y - d0y, x, y);
+            prevX = x;
+            prevY = y;
         }
 
-        prevX1 = prevX;
-        prevY1 = prevY;
-        prevX = x;
-        prevY = y;
-        pathPointCounter++;
-        //path.lineTo(x, y);
     }
 
 
@@ -530,20 +520,18 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
 
                     switch (this.drawer) {
                         case PEN:
+                        case SMOOTH_PEN:
                             int historySize = event.getHistorySize();
-                            /*for (int i = 0; i < historySize; i++) {
-                                float historicalX = convertCoorX(event.getHistoricalX(i));
-                                float historicalY = convertCoorY(event.getHistoricalY(i));
 
-                                //path.quadTo(prevX, prevY, historicalX, historicalY);
-                                addPointToPath(historicalX, historicalY, path);
-                            }*/
                             addPointToPath(x, y, path);
 
-                            this.pathLists.set(this.historyPointer - 1,
-                                    bezierCurveConstructor.constructPath());
-                            //path.lineTo(x, y);
-                            //path.quadTo(prevX, prevY, x, y);
+                            // if use smooth, replace the path
+                            // with a smoothed one
+                            if (drawer == Drawer.SMOOTH_PEN) {
+                                this.pathLists.set(this.historyPointer - 1,
+                                        bezierCurveConstructor.constructPath());
+                            }
+
 
                             break;
                         case LINE:
@@ -715,21 +703,16 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
 
         canvas.restore();
 
-        //test
-        if (testRect != null) {
-            Paint p = new Paint(Color.BLACK);
-            p.setStyle(Paint.Style.STROKE);
-            canvas.drawRect(testRect, p);
-        }
 
-
-        long now = System.currentTimeMillis();
-        ifps++;
-        if (now > (mLastTime + 1000)) {
-            mLastTime = now;
-            fps = ifps;
-            ifps = 0;
-            Log.d("FPS:", "" + fps);
+        if (BuildConfig.DEBUG) {
+            long now = System.currentTimeMillis();
+            ifps++;
+            if (now > (mLastTime + 1000)) {
+                mLastTime = now;
+                fps = ifps;
+                ifps = 0;
+                Log.d("FPS:", "" + fps);
+            }
         }
 
     }
