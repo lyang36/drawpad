@@ -5,7 +5,7 @@
  * Released under the MIT license
  *
  *
- * Modified by Lin Yang, 12/16/2015
+ * Modified by Lin Yang, 12/26/2015
  */
 
 package com.yang.drawpad;
@@ -34,8 +34,6 @@ import android.view.SurfaceView;
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.List;
-// import android.util.Log;
-// import android.widget.Toast;
 
 /**
  * This class defines fields and methods for drawing.
@@ -43,10 +41,9 @@ import java.util.List;
 public class SurfaceCanvasView extends SurfaceView implements Runnable {
     // the maximum number of paths to undo
     private static final int MAX_NUM_PATHS = 200;
-
-
-    Thread drawThread = null;
+    private static final float TOUCH_TOLERANCE = 5;
     int pathPointCounter = 0;
+    private Thread drawThread = null;
     // the bitmap to record the paths when exceed max_num_paths
     private Bitmap overflowBitmap = null;
     // the current screen bitmap
@@ -97,6 +94,8 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     // to draw the spline
     private float prevX, prevY;
     private float prevX1, prevY1;
+    private BezierCurveConstructor bezierCurveConstructor;
+
     // move the view
     private boolean isTwoFingerDown = false;
     private float twoFingerStartX;
@@ -267,7 +266,7 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         paint.setStrokeJoin(Paint.Join.ROUND);    // set the join to round you want
         paint.setStrokeCap(Paint.Cap.ROUND);      // set the paint cap to round too
         //paint.set
-        //paint.setPathEffect(new CornerPathEffect(this.paintStrokeWidth / 10));   // set the path effect when they join.
+        //paint.setPathEffect(new CornerPathEffect(this.paintStrokeWidth * 2));   // set the path effect when they join.
 
         // for Text
         if (this.mode == Mode.TEXT) {
@@ -317,6 +316,8 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
 
 
         path.moveTo(this.startX, this.startY);
+
+        bezierCurveConstructor.addPoint(this.startX, this.startY);
 
         return path;
     }
@@ -433,9 +434,17 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
             case DRAW:
             case ERASER:
                 if ((this.drawer != Drawer.QUADRATIC_BEZIER) && (this.drawer != Drawer.QUBIC_BEZIER)) {
+
+
+                    pathPointCounter = 0;
+                    if (bezierCurveConstructor == null) {
+                        bezierCurveConstructor = new BezierCurveConstructor();
+                    } else {
+                        bezierCurveConstructor.reset();
+                    }
+
                     // Oherwise
                     this.updateHistory(this.createPath(event));
-                    pathPointCounter = 0;
                     this.isDown = true;
                 } else {
                     // Bezier
@@ -461,6 +470,40 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
                 break;
         }
     }
+
+    private void addPointToPath(float x, float y, Path path) {
+
+        float dx = Math.abs(x - prevX);
+        float dy = Math.abs(y - prevY);
+
+        // this is crucial to draw a reasonable path
+        if (!(dx >= TOUCH_TOLERANCE / mScaleFactor || dy >= TOUCH_TOLERANCE / mScaleFactor)) {
+            return;
+        }
+        //path.quadTo(prevX, prevY, (x + prevX)/2, (y + prevY)/2);
+        bezierCurveConstructor.addPoint(x, y);
+
+
+        float d0x, d0y;
+        float d1x, d1y;
+        if (pathPointCounter < 2) {
+            // less than 3 points, not drawing
+        } else {
+            //d1x = ((prevX - prevX1) / 3);
+            //d1y = ((prevY - prevY1) / 3);
+            d0x = ((x - prevX1) / 5);
+            d0y = ((y - prevY1) / 5);
+            //path.cubicTo(prevX + d0x, prevY + d0y, x - d0x, y - d0y, x, y);
+        }
+
+        prevX1 = prevX;
+        prevY1 = prevY;
+        prevX = x;
+        prevY = y;
+        pathPointCounter++;
+        //path.lineTo(x, y);
+    }
+
 
     /**
      * This method defines processes on MotionEvent.ACTION_MOVE
@@ -488,27 +531,20 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
                     switch (this.drawer) {
                         case PEN:
                             int historySize = event.getHistorySize();
-                            for (int i = 0; i < historySize; i++) {
+                            /*for (int i = 0; i < historySize; i++) {
                                 float historicalX = convertCoorX(event.getHistoricalX(i));
                                 float historicalY = convertCoorY(event.getHistoricalY(i));
 
-                                path.quadTo(prevX, prevY, historicalX, historicalY);
+                                //path.quadTo(prevX, prevY, historicalX, historicalY);
+                                addPointToPath(historicalX, historicalY, path);
+                            }*/
+                            addPointToPath(x, y, path);
 
-                                //pathPointCounter ++;
-                                //if(pathPointCounter % 2 == 0){
-                                //    path.quadTo(prevX, prevY, historicalX, historicalY);
-                                //}
-                                prevX = historicalX;
-                                prevY = historicalY;
-                            }
+                            this.pathLists.set(this.historyPointer - 1,
+                                    bezierCurveConstructor.constructPath());
                             //path.lineTo(x, y);
-                            path.quadTo(prevX, prevY, x, y);
-                            //pathPointCounter ++;
-                            //if(pathPointCounter % 2 == 0){
-                            //    path.quadTo(prevX, prevY, x, y);
-                            //}
-                            prevX = x;
-                            prevY = y;
+                            //path.quadTo(prevX, prevY, x, y);
+
                             break;
                         case LINE:
                             path.reset();
@@ -1255,6 +1291,7 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     // Enumeration for Drawer
     public enum Drawer {
         PEN,
+        SMOOTH_PEN, // use cubic_bezier line
         LINE,
         RECTANGLE,
         CIRCLE,
