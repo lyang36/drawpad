@@ -41,9 +41,16 @@ import java.util.List;
  * This class defines fields and methods for drawing.
  */
 public class SurfaceCanvasView extends SurfaceView implements Runnable {
+    public interface OnDrawListener{
+        /**
+         * what to do if the canvas is updated.
+         */
+        void onCanvasUpdated();
+    }
+
     // the maximum number of paths to undo
     private static final int MAX_NUM_PATHS = 200;
-    private static final float TOUCH_TOLERANCE = 15;
+    private static final float TOUCH_TOLERANCE = 15;        //pixel
 
     // the draw thread on the background
     private Thread drawThread = null;
@@ -104,11 +111,15 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     private float prevY = 0F;
 
 
+    // for zooming and pan
     private float currentTranslationX = 0f;
     private float currentTranslationY;
     private float mScaleFactor = 1.f;
     private int scalePivotX = 0;
     private int scalePivotY = 0;
+    private Matrix currentMatrix = new Matrix();
+    private Matrix currentMatrixInverse = new Matrix();
+    private Matrix tempMatrix = new Matrix();
 
 
     // to draw the spline
@@ -118,50 +129,72 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     private boolean isTwoFingerDown = false;
     private float twoFingerStartX;
     private float twoFingerStartY;
-    /*private float currentTranslateX = 0F;
-    private float currentTranslateY = 0F;*/
     private SurfaceHolder surfaceHolder;
     private boolean okToDraw = false;
     private boolean isRedrawBackground = false;
     private boolean isAddNewestPath = false;
 
-    private Matrix currentMatrix = new Matrix();
-    private Matrix currentMatrixInverse = new Matrix();
-    private Matrix tempMatrix = new Matrix();
-
-
     // measuring fps
     private long mLastTime = 0;
     private int fps = 0, ifps = 0;
 
+    OnDrawListener onDrawListener;
+
+
     // when drawing,
     // only the updated rectangle need to be redrawed
-    private RenderRect renderRect;
+    // WARNING: I tried to implement this, but failed.
+    // the current frame-rate is good enough. If
+    // it's too slow, considering implement this.
+    //private RenderRect renderRect;
 
-
+    /**
+     * matrix operations for pan&zooming
+     */
     protected void saveMatrix(){
         tempMatrix.set(currentMatrix);
     }
+    /**
+     * matrix operations for pan&zooming
+     */
     protected void restoreMatrix(){
         currentMatrix.set(tempMatrix);
         tempMatrix.invert(currentMatrixInverse);
     }
-
+    /**
+     * matrix operations for pan&zooming
+     */
     protected void translateMatrix(float tx, float ty){
         currentMatrix.postTranslate(tx, ty);
         currentMatrix.invert(currentMatrixInverse);
     }
+    /**
+     * matrix operations for pan&zooming
+     */
     protected void scaleMatrix(float sx, float sy, float px, float py){
         currentMatrix.postScale(sx, sy, px, py);
         currentMatrix.invert(currentMatrixInverse);
     }
-
+    /**
+     * matrix operations for pan&zooming
+     */
     protected void applyCurrentTranslationScale(){
         restoreMatrix();
         translateMatrix(currentTranslationX, currentTranslationY);
         scaleMatrix(mScaleFactor, mScaleFactor, scalePivotX, scalePivotY);
         Log.d("Scale", "" + mScaleFactor);
     }
+
+
+
+    /**
+     * when the canvas is updated, it suppose to use this listener to store it to file
+     * @param onDrawListener
+     */
+    public void setOnDrawListener(OnDrawListener onDrawListener) {
+        this.onDrawListener = onDrawListener;
+    }
+
 
     /**
      * Copy Constructor
@@ -198,22 +231,7 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         this.setup(context);
         bitmap = null;
     }
-    //private Rect currentRect;
 
-    /**
-     * This static method gets the designated bitmap as byte array.
-     *
-     * @param bitmap
-     * @param format
-     * @param quality
-     * @return This is returned as byte array of bitmap.
-     */
-    public static byte[] getBitmapAsByteArray(Bitmap bitmap, CompressFormat format, int quality) {
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        bitmap.compress(format, quality, byteArrayOutputStream);
-
-        return byteArrayOutputStream.toByteArray();
-    }
 
     /**
      * Common initialization.
@@ -221,10 +239,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
      * @param context
      */
     private void setup(Context context) {
-
-        /*this.pathLists.add(new Path());
-        this.paintLists.add(this.createPaint());
-        this.historyPointer++;*/
         addPath(new Path(), this.createPaint());
 
         this.textPaint.setARGB(0, 255, 255, 255);
@@ -237,6 +251,11 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         surfaceHolder = getHolder();
     }
 
+    /**
+     * add a path to the array
+     * @param path
+     * @param paint
+     */
     private void addPath(Path path, Paint paint) {
 
         if (historyPointer < pathLists.size()) {
@@ -264,34 +283,25 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         }
     }
 
-    /*public void setTranslate(float X, float Y) {
-        this.translateX = X;
-        this.translateY = Y;
-        //this.invalidate();
-    }*/
 
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
     }
 
-    //public void setScaleFactor(float scaleFactor) {
-    //    this.mScaleFactor = scaleFactor;
-        //this.invalidate();
-    //}
 
-    public void setScaleGestureDetector(ScaleGestureDetector scaleGestureDetector) {
-        this.scaleGestureDetector = scaleGestureDetector;
-    }
-
+    /**
+     * set the draw bound, outside which, the canvas will not draw
+     * @param drawBound
+     */
     public void setDrawBound(Rect drawBound) {
         this.drawBound = drawBound;
-        //this.invalidate();
     }
-
+    /**
+     * set the draw bound, outside which, the canvas will not draw
+     */
     public void setDrawBound(int left, int top, int right, int bottom) {
         this.drawBound = new Rect(left, top, right, bottom);
-        //this.invalidate();
     }
 
     /**
@@ -325,8 +335,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
             paint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
             paint.setARGB(0, 0, 0, 0);
 
-            // paint.setColor(this.baseColor);
-            // paint.setShadowLayer(this.blur, 0F, 0F, this.baseColor);
         } else {
             // Otherwise
             paint.setColor(this.paintStrokeColor);
@@ -348,9 +356,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     private Path createPath(MotionEvent event) {
         Path path = new Path();
 
-        // Save for ACTION_MOVE
-        //this.startX = getEventX(event);
-        //this.startY = getEventY(event);
         EPointF ePointF = getConvertedPoints(event.getX(), event.getY());
         this.startX = ePointF.getX();
         this.startY = ePointF.getY();
@@ -361,6 +366,13 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         return path;
     }
 
+    /**
+     * get the canvas coordinates from the current screen points.
+     * This is done by inverse the currentMatrix, use it to map
+     * @param x
+     * @param y
+     * @return
+     */
     private EPointF getConvertedPoints(float x, float y){
         float[] src = new float[]{x, y};
 
@@ -369,29 +381,10 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         inverse.mapPoints(src);
         EPointF ePointF = new EPointF(src[0], src[1]);
 
-        Log.d("Matrix", "" + x + " " + y + " " + ePointF.getX() + " " + ePointF.getY());
+        //Log.d("Matrix", "" + x + " " + y + " " + ePointF.getX() + " " + ePointF.getY());
         return ePointF;
     }
 
-    protected void addScale(float scale, float px, float py){
-
-    }
-
-    /*private float convertCoorX(float x) {
-        return (x - translateX - scalePivotX) / mScaleFactor + scalePivotX;// - drawBound.left * mScaleFactor;
-    }
-
-    private float convertCoorY(float y) {
-        return (y - translateY - scalePivotY) / mScaleFactor + scalePivotY;// - drawBound.left * mScaleFactor;
-    }
-
-    private float getEventX(MotionEvent event) {
-        return convertCoorX(event.getX());// - drawBound.left * mScaleFactor;
-    }
-
-    private float getEventY(MotionEvent event) {
-        return convertCoorY(event.getY());
-    }*/
 
     /**
      * This method updates the lists for the instance of Path and Paint.
@@ -401,15 +394,9 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
      */
     private void updateHistory(Path path) {
         if (this.historyPointer == this.pathLists.size()) {
-            /*this.pathLists.add(path);
-            this.paintLists.add(this.createPaint());
-            this.historyPointer++;*/
             addPath(path, this.createPaint());
         } else {
             // On the way of Undo or Redo
-            /*this.pathLists.set(this.historyPointer, path);
-            this.paintLists.set(this.historyPointer, this.createPaint());
-            this.historyPointer++;*/
             addPath(path, this.createPaint());
 
             for (int i = this.historyPointer, size = this.paintLists.size(); i < size; i++) {
@@ -479,11 +466,13 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
      * @param event This is argument of onTouchEvent method
      */
     private void onActionDown(MotionEvent event) {
+        /* Failed to implement to the following
         if (renderRect == null) {
             renderRect = new RenderRect((int) event.getX(), (int) event.getY(), (int) paintStrokeWidth);
         }
         renderRect.update((int) event.getX(), (int) event.getY(), (int) paintStrokeWidth);
         renderRect.reset();
+        */
 
         switch (this.mode) {
             case DRAW:
@@ -507,8 +496,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
                         this.updateHistory(this.createPath(event));
                     } else {
                         // The 2nd tap
-                        //this.controlX = getEventX(event);
-                        //this.controlY = getEventY(event);
                         EPointF ePointF = getConvertedPoints(event.getX(), event.getY());
                         this.controlX = ePointF.getX();
                         this.controlY = ePointF.getY();
@@ -519,8 +506,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
 
                 break;
             case TEXT:
-                //this.startX = getEventX(event);
-                //this.startY = getEventY(event);
                 EPointF ePointF = getConvertedPoints(event.getX(), event.getY());
                 this.startX = ePointF.getX();
                 this.startY = ePointF.getY();
@@ -564,7 +549,7 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         x = ePointF.getX();
         y = ePointF.getY();
 
-        renderRect.update((int) event.getX(), (int) event.getY(), (int) paintStrokeWidth);
+        //renderRect.update((int) event.getX(), (int) event.getY(), (int) paintStrokeWidth);
 
         switch (this.mode) {
             case DRAW:
@@ -655,8 +640,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
 
             this.isDown = false;
             requestAddNewPathToBackground();
-            //add the newest path to the drawpad
-            //drawBitMap(this.historyPointer - 1);
         }
     }
 
@@ -715,6 +698,8 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     }
 
     private void drawFullScreen(Canvas canvas) {
+        boolean callOnDrawListener = false;
+
         if (canvas == null) {
             return;
         }
@@ -726,16 +711,12 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         }
 
         canvas.save();
-
-        //canvas.translate(translateX, translateY);
-        //canvas.scale(mScaleFactor, mScaleFactor, scalePivotX, scalePivotY);
         canvas.setMatrix(currentMatrix);
 
         if (currentScreenBitMap == null || isRedrawBackground) {
             drawBitMap(-1);
             isRedrawBackground = false;
         }
-
 
         Paint paint = new Paint();
         paint.setAntiAlias(true);
@@ -752,6 +733,7 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         if (isAddNewestPath) {
             drawBitMap(this.historyPointer - 1);
             isAddNewestPath = false;
+            callOnDrawListener = true;
         }
         //put a hole in the current clip
         canvas.clipRect(drawBound, Region.Op.DIFFERENCE);
@@ -761,10 +743,13 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         canvas.clipRect(new Rect(0, 0, canvas.getWidth(), canvas.getHeight())
                 , Region.Op.REPLACE);
 
-
         canvas.restore();
 
-
+        if(callOnDrawListener){
+            if(onDrawListener != null){
+                onDrawListener.onCanvasUpdated();
+            }
+        }
         if (BuildConfig.DEBUG) {
             long now = System.currentTimeMillis();
             ifps++;
@@ -791,21 +776,11 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
      */
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        //Log.d("PointA", "" + (event.getAction() == MotionEvent.ACTION_POINTER_DOWN));
-        //float initTransX = translateX;
-        //float initTransY = translateY;
         switch (event.getAction() & MotionEvent.ACTION_MASK) {
             case MotionEvent.ACTION_POINTER_DOWN:
                 Log.d("PointDown", "" + event.getPointerCount());
                 if (event.getPointerCount() == 2) {
                     isTwoFingerDown = true;
-                    /*twoFingerStartX = event.getX();
-                    twoFingerStartY = event.getY();
-                    currentTranslateX = translateX;
-                    currentTranslateY = translateY;*/
-
-                    //scalePivotX = (int)(event.getX(0) + event.getX(1)) / 2;
-                    //scalePivotY = (int)(event.getY(0) + event.getY(1)) / 2;
                     float sx = (event.getX(0) + event.getX(1)) / 2;
                     float sy = (event.getY(0) + event.getY(1)) / 2;
                     twoFingerStartX = sx;
@@ -819,24 +794,13 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
                     if (isDown) {
                         // undo the current drawing
                         onActionUp(event);
-                        undo();
+                        //undo();
                     }
                 }
                 break;
             case MotionEvent.ACTION_MOVE:
                 if (event.getPointerCount() == 2) {
                     if (isTwoFingerDown) {
-                        /*translateX =
-                                (event.getX() - twoFingerStartX)
-                                        + currentTranslateX;
-                        translateY =
-                                (event.getY() - twoFingerStartY)
-                                        + currentTranslateY;*/
-
-                        //scalePivotX = (int)(event.getX(0) + event.getX(1)) / 2;
-                        //scalePivotY = (int)(event.getY(0) + event.getY(1)) / 2;
-
-
                         float sx = (event.getX(0) + event.getX(1)) / 2;
                         float sy = (event.getY(0) + event.getY(1)) / 2;
                         scalePivotY = (int) (sy);
@@ -860,10 +824,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
             scaleGestureDetector.onTouchEvent(event);
 
             if (scaleGestureDetector.isInProgress()) {
-                //invalid the move
-                //translateX = initTransX;
-                //translateY = initTransY;
-
                 return true;
             }
         }
@@ -936,13 +896,7 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     public boolean undo() {
         if (this.historyPointer > 1) {
             this.historyPointer--;
-
-            // redraw the screen
-            //drawBitMap(-1);
-            // invalidates
             requestRedrawBackground();
-            //this.invalidate();
-
             return true;
         } else {
             return false;
@@ -957,8 +911,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     public boolean redo() {
         if (this.historyPointer < this.pathLists.size()) {
             this.historyPointer++;
-            //this.invalidate();
-
             return true;
         } else {
             return false;
@@ -997,9 +949,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         }
 
         this.text = "";
-
-        // Clear
-        //this.invalidate();
     }
 
     /**
@@ -1298,15 +1247,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
             //drawFullScreen();
             Canvas canvas = null;
             try {
-
-                /*if(isDown) {
-                    //canvas = surfaceHolder.lockCanvas(null);
-                    synchronized (renderRect) {
-                        canvas = surfaceHolder.lockCanvas(renderRect.redrawRect);
-                        testRect = renderRect.redrawRect;
-                        //renderRect.reset();
-                    }
-                }else*/
                 {
                     Rect rect = new Rect(0, 0, getWidth(), getHeight());
                     canvas = surfaceHolder.lockCanvas(rect);
@@ -1422,9 +1362,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
 
             Log.d("Scale 1", "" + mScaleFactor);
             applyCurrentTranslationScale();
-            //scaleMatrix(mScaleFactor, mScaleFactor, scalePivotX, scalePivotY);
-            //setScaleFactor(mScaleFactor);
-            //invalidate();
             return true;
         }
     }
