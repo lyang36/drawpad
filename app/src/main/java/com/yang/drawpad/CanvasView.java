@@ -645,9 +645,13 @@ public class CanvasView extends View {
                     twoFingerStartX = event.getX();
                     twoFingerStartY = event.getY();
 
-                    scalePivotX = (int) event.getX();
-                    scalePivotY = (int) event.getY();
-
+                    //scalePivotX = 0;//(int) event.getX();
+                    //scalePivotY = 0;//(int) event.getY();
+                    if (isDown) {
+                        // undo the current drawing
+                        onActionUp(event);
+                        undo();
+                    }
                 }
                 break;
             case MotionEvent.ACTION_MOVE:
@@ -680,11 +684,7 @@ public class CanvasView extends View {
                 //translateX = initTransX;
                 //translateY = initTransY;
 
-                if (isDown) {
-                    // undo the current drawing
-                    onActionUp(event);
-                    undo();
-                }
+
                 return true;
             }
         }

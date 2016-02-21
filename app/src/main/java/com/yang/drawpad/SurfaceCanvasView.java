@@ -481,7 +481,7 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         float dy = Math.abs(y - prevY);
 
         // this is crucial to draw a reasonable path
-        if (dx >= TOUCH_TOLERANCE || dy >= TOUCH_TOLERANCE) {
+        if (dx >= TOUCH_TOLERANCE / mScaleFactor || dy >= TOUCH_TOLERANCE / mScaleFactor) {
             bezierCurveConstructor.addPoint(x, y);
 
             if (this.drawer == Drawer.PEN) {
@@ -739,10 +739,13 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
                     isTwoFingerDown = true;
                     twoFingerStartX = event.getX();
                     twoFingerStartY = event.getY();
-
-                    scalePivotX = (int) event.getX();
-                    scalePivotY = (int) event.getY();
-
+                    currentTranslateX = translateX;
+                    currentTranslateY = translateY;
+                    if (isDown) {
+                        // undo the current drawing
+                        onActionUp(event);
+                        undo();
+                    }
                 }
                 break;
             case MotionEvent.ACTION_MOVE:
@@ -754,7 +757,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
                         translateY =
                                 (event.getY() - twoFingerStartY)
                                         + currentTranslateY;
-                        //invalidate();
                     }
                 }
                 break;
@@ -775,11 +777,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
                 //translateX = initTransX;
                 //translateY = initTransY;
 
-                if (isDown) {
-                    // undo the current drawing
-                    onActionUp(event);
-                    undo();
-                }
                 return true;
             }
         }
@@ -1336,7 +1333,8 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
 
             // Don't let the object get too small or too large.
             mScaleFactor = Math.max(0.1f, Math.min(mScaleFactor, 5.0f));
-
+            scalePivotX = (int) detector.getFocusX();
+            scalePivotY = (int) detector.getFocusY();
             setScaleFactor(mScaleFactor);
             //invalidate();
             return true;

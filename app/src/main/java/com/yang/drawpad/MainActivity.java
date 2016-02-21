@@ -35,7 +35,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_drawpad);
 
         canvasView = (SurfaceCanvasView) findViewById(R.id.canvasView);
         sampleDotView = (ColorDotView) findViewById(R.id.colorDot);
@@ -97,7 +97,10 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        String[] colors = new String[]{"#ff0000", "#00ff00", "#0000ff", "#000000", "#ffffff"};
+        String[] colors = new String[]{"#000000", "#ffffff", "#999999", "#ffd200", "#fffb1a",
+                "#b66f47", "#ffc8a8", "#f0d881", "#d92f2f", "#ffe0e0"};
+        String[] colors1 = new String[]{"#ff4c62", "#e645b5", "#ba4dff", "#175fe6", "#18e0f2",
+                "#3d933d", "#7cff81", "#29ccb6", "#4e51a0", "#b365a3"};
 
         final LinearLayout colorPickerContainer = (LinearLayout) findViewById(R.id.colorPicker_container);
         for(int i= 0; i < colors.length; i++){
