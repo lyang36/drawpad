@@ -1176,23 +1176,9 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
      * @return This is returned as bitmap.
      */
     public Bitmap getBitmap() {
-        this.setDrawingCacheEnabled(false);
-        this.setDrawingCacheEnabled(true);
-
-        return Bitmap.createBitmap(this.getDrawingCache());
+        return currentScreenBitMap;
     }
 
-    /**
-     * This method gets current canvas as scaled bitmap.
-     *
-     * @return This is returned as scaled bitmap.
-     */
-    public Bitmap getScaleBitmap(int w, int h) {
-        this.setDrawingCacheEnabled(false);
-        this.setDrawingCacheEnabled(true);
-
-        return Bitmap.createScaledBitmap(this.getDrawingCache(), w, h, true);
-    }
 
     /**
      * This method draws the designated bitmap to canvas.
@@ -1201,7 +1187,7 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
      */
     public void drawBitmap(Bitmap bitmap) {
         this.bitmap = bitmap;
-        //this.invalidate();
+        requestRedrawBackground();
     }
 
     /**
@@ -1360,7 +1346,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
             // Don't let the object get too small or too large.
             mScaleFactor = Math.max(0.1f, Math.min(mScaleFactor, 20.0f));
 
-            Log.d("Scale 1", "" + mScaleFactor);
             applyCurrentTranslationScale();
             return true;
         }
