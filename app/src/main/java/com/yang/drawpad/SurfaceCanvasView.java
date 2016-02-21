@@ -17,6 +17,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.CornerPathEffect;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
@@ -52,9 +53,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
 
     // the current screen bitmap
     private Bitmap currentScreenBitMap = null;
-    private float mScaleFactor = 1.f;
-    private int scalePivotX = 0;
-    private int scalePivotY = 0;
     private ScaleGestureDetector scaleGestureDetector;
 
     // the draw bound
@@ -102,10 +100,15 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     private float startY = 0F;
     private float controlX = 0F;
     private float controlY = 0F;
-    private float translateX = 0F;
-    private float translateY = 0F;
     private float prevX = 0F;
     private float prevY = 0F;
+
+
+    private float currentTranslationX = 0f;
+    private float currentTranslationY;
+    private float mScaleFactor = 1.f;
+    private int scalePivotX = 0;
+    private int scalePivotY = 0;
 
 
     // to draw the spline
@@ -115,12 +118,16 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     private boolean isTwoFingerDown = false;
     private float twoFingerStartX;
     private float twoFingerStartY;
-    private float currentTranslateX = 0F;
-    private float currentTranslateY = 0F;
+    /*private float currentTranslateX = 0F;
+    private float currentTranslateY = 0F;*/
     private SurfaceHolder surfaceHolder;
     private boolean okToDraw = false;
     private boolean isRedrawBackground = false;
     private boolean isAddNewestPath = false;
+
+    private Matrix currentMatrix = new Matrix();
+    private Matrix currentMatrixInverse = new Matrix();
+    private Matrix tempMatrix = new Matrix();
 
 
     // measuring fps
@@ -131,6 +138,30 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
     // only the updated rectangle need to be redrawed
     private RenderRect renderRect;
 
+
+    protected void saveMatrix(){
+        tempMatrix.set(currentMatrix);
+    }
+    protected void restoreMatrix(){
+        currentMatrix.set(tempMatrix);
+        tempMatrix.invert(currentMatrixInverse);
+    }
+
+    protected void translateMatrix(float tx, float ty){
+        currentMatrix.postTranslate(tx, ty);
+        currentMatrix.invert(currentMatrixInverse);
+    }
+    protected void scaleMatrix(float sx, float sy, float px, float py){
+        currentMatrix.postScale(sx, sy, px, py);
+        currentMatrix.invert(currentMatrixInverse);
+    }
+
+    protected void applyCurrentTranslationScale(){
+        restoreMatrix();
+        translateMatrix(currentTranslationX, currentTranslationY);
+        scaleMatrix(mScaleFactor, mScaleFactor, scalePivotX, scalePivotY);
+        Log.d("Scale", "" + mScaleFactor);
+    }
 
     /**
      * Copy Constructor
@@ -233,21 +264,21 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         }
     }
 
-    public void setTranslate(float X, float Y) {
+    /*public void setTranslate(float X, float Y) {
         this.translateX = X;
         this.translateY = Y;
         //this.invalidate();
-    }
+    }*/
 
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
     }
 
-    public void setScaleFactor(float scaleFactor) {
-        this.mScaleFactor = scaleFactor;
+    //public void setScaleFactor(float scaleFactor) {
+    //    this.mScaleFactor = scaleFactor;
         //this.invalidate();
-    }
+    //}
 
     public void setScaleGestureDetector(ScaleGestureDetector scaleGestureDetector) {
         this.scaleGestureDetector = scaleGestureDetector;
@@ -318,8 +349,11 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         Path path = new Path();
 
         // Save for ACTION_MOVE
-        this.startX = getEventX(event);
-        this.startY = getEventY(event);
+        //this.startX = getEventX(event);
+        //this.startY = getEventY(event);
+        EPointF ePointF = getConvertedPoints(event.getX(), event.getY());
+        this.startX = ePointF.getX();
+        this.startY = ePointF.getY();
 
         path.moveTo(this.startX, this.startY);
         bezierCurveConstructor.addPoint(this.startX, this.startY);
@@ -327,7 +361,23 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         return path;
     }
 
-    private float convertCoorX(float x) {
+    private EPointF getConvertedPoints(float x, float y){
+        float[] src = new float[]{x, y};
+
+        Matrix inverse = new Matrix();
+        currentMatrix.invert(inverse);
+        inverse.mapPoints(src);
+        EPointF ePointF = new EPointF(src[0], src[1]);
+
+        Log.d("Matrix", "" + x + " " + y + " " + ePointF.getX() + " " + ePointF.getY());
+        return ePointF;
+    }
+
+    protected void addScale(float scale, float px, float py){
+
+    }
+
+    /*private float convertCoorX(float x) {
         return (x - translateX - scalePivotX) / mScaleFactor + scalePivotX;// - drawBound.left * mScaleFactor;
     }
 
@@ -341,7 +391,7 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
 
     private float getEventY(MotionEvent event) {
         return convertCoorY(event.getY());
-    }
+    }*/
 
     /**
      * This method updates the lists for the instance of Path and Paint.
@@ -457,8 +507,11 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
                         this.updateHistory(this.createPath(event));
                     } else {
                         // The 2nd tap
-                        this.controlX = getEventX(event);
-                        this.controlY = getEventY(event);
+                        //this.controlX = getEventX(event);
+                        //this.controlY = getEventY(event);
+                        EPointF ePointF = getConvertedPoints(event.getX(), event.getY());
+                        this.controlX = ePointF.getX();
+                        this.controlY = ePointF.getY();
 
                         this.isDown = true;
                     }
@@ -466,8 +519,11 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
 
                 break;
             case TEXT:
-                this.startX = getEventX(event);
-                this.startY = getEventY(event);
+                //this.startX = getEventX(event);
+                //this.startY = getEventY(event);
+                EPointF ePointF = getConvertedPoints(event.getX(), event.getY());
+                this.startX = ePointF.getX();
+                this.startY = ePointF.getY();
 
                 break;
             default:
@@ -481,7 +537,8 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         float dy = Math.abs(y - prevY);
 
         // this is crucial to draw a reasonable path
-        if (dx >= TOUCH_TOLERANCE / mScaleFactor || dy >= TOUCH_TOLERANCE / mScaleFactor) {
+        float scaledTolerance = currentMatrixInverse.mapRadius(TOUCH_TOLERANCE);
+        if (dx >= scaledTolerance || dy >= scaledTolerance) {
             bezierCurveConstructor.addPoint(x, y);
 
             if (this.drawer == Drawer.PEN) {
@@ -501,9 +558,11 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
      * @param event This is argument of onTouchEvent method
      */
     private void onActionMove(MotionEvent event) {
-        float x = getEventX(event);
-        float y = getEventY(event);
-
+        float x;// = getEventX(event);
+        float y;// = getEventY(event);
+        EPointF ePointF = getConvertedPoints(event.getX(), event.getY());
+        x = ePointF.getX();
+        y = ePointF.getY();
 
         renderRect.update((int) event.getX(), (int) event.getY(), (int) paintStrokeWidth);
 
@@ -668,8 +727,10 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
 
         canvas.save();
 
-        canvas.translate(translateX, translateY);
-        canvas.scale(mScaleFactor, mScaleFactor, scalePivotX, scalePivotY);
+        //canvas.translate(translateX, translateY);
+        //canvas.scale(mScaleFactor, mScaleFactor, scalePivotX, scalePivotY);
+        canvas.setMatrix(currentMatrix);
+
         if (currentScreenBitMap == null || isRedrawBackground) {
             drawBitMap(-1);
             isRedrawBackground = false;
@@ -721,6 +782,7 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
         this.plainColor = plainColor;
     }
 
+
     /**
      * This method set event listener for drawing.
      *
@@ -737,10 +799,23 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
                 Log.d("PointDown", "" + event.getPointerCount());
                 if (event.getPointerCount() == 2) {
                     isTwoFingerDown = true;
-                    twoFingerStartX = event.getX();
+                    /*twoFingerStartX = event.getX();
                     twoFingerStartY = event.getY();
                     currentTranslateX = translateX;
-                    currentTranslateY = translateY;
+                    currentTranslateY = translateY;*/
+
+                    //scalePivotX = (int)(event.getX(0) + event.getX(1)) / 2;
+                    //scalePivotY = (int)(event.getY(0) + event.getY(1)) / 2;
+                    float sx = (event.getX(0) + event.getX(1)) / 2;
+                    float sy = (event.getY(0) + event.getY(1)) / 2;
+                    twoFingerStartX = sx;
+                    twoFingerStartY = sy;
+                    scalePivotY = (int) (sy);
+                    scalePivotX = (int) (sx);
+                    mScaleFactor = 1.0f;
+
+                    saveMatrix();
+
                     if (isDown) {
                         // undo the current drawing
                         onActionUp(event);
@@ -751,12 +826,24 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
             case MotionEvent.ACTION_MOVE:
                 if (event.getPointerCount() == 2) {
                     if (isTwoFingerDown) {
-                        translateX =
+                        /*translateX =
                                 (event.getX() - twoFingerStartX)
                                         + currentTranslateX;
                         translateY =
                                 (event.getY() - twoFingerStartY)
-                                        + currentTranslateY;
+                                        + currentTranslateY;*/
+
+                        //scalePivotX = (int)(event.getX(0) + event.getX(1)) / 2;
+                        //scalePivotY = (int)(event.getY(0) + event.getY(1)) / 2;
+
+
+                        float sx = (event.getX(0) + event.getX(1)) / 2;
+                        float sy = (event.getY(0) + event.getY(1)) / 2;
+                        scalePivotY = (int) (sy);
+                        scalePivotX = (int) (sx);
+                        currentTranslationX = sx - twoFingerStartX;
+                        currentTranslationY = sy - twoFingerStartY;
+                        applyCurrentTranslationScale();
                     }
                 }
                 break;
@@ -1323,7 +1410,6 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
 
     class ScaleListener
             extends ScaleGestureDetector.SimpleOnScaleGestureListener {
-        private float mScaleFactor = 1.f;
 
         @Override
         public boolean onScale(ScaleGestureDetector detector) {
@@ -1332,10 +1418,12 @@ public class SurfaceCanvasView extends SurfaceView implements Runnable {
             mScaleFactor *= detector.getScaleFactor();
 
             // Don't let the object get too small or too large.
-            mScaleFactor = Math.max(0.1f, Math.min(mScaleFactor, 5.0f));
-            scalePivotX = (int) detector.getFocusX();
-            scalePivotY = (int) detector.getFocusY();
-            setScaleFactor(mScaleFactor);
+            mScaleFactor = Math.max(0.1f, Math.min(mScaleFactor, 20.0f));
+
+            Log.d("Scale 1", "" + mScaleFactor);
+            applyCurrentTranslationScale();
+            //scaleMatrix(mScaleFactor, mScaleFactor, scalePivotX, scalePivotY);
+            //setScaleFactor(mScaleFactor);
             //invalidate();
             return true;
         }
